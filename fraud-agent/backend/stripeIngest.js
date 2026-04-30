@@ -1,4 +1,3 @@
-import Stripe from 'stripe';
 import { processBatch } from './pipeline.js';
 
 /** ISO currencies Stripe treats as zero-decimal (amount is whole units) */
@@ -48,15 +47,19 @@ export async function ingestPaymentIntent(pi, push) {
   await processBatch([paymentIntentToTxn(pi)], push);
 }
 
-export function getStripe() {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) return null;
-  return new Stripe(key);
-}
-
 export async function handleStripeWebhook(req, res, { push }) {
+  let Stripe;
+  try {
+    ({ default: Stripe } = await import('stripe'));
+  } catch {
+    return res.status(503).json({
+      error: 'Stripe SDK not installed. Run `npm install` in the fraud-agent folder.',
+    });
+  }
+
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  const stripe = getStripe();
+  const key = process.env.STRIPE_SECRET_KEY;
+  const stripe = key ? new Stripe(key) : null;
 
   if (!stripe || !webhookSecret) {
     return res.status(503).json({
