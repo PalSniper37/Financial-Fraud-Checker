@@ -32,6 +32,7 @@ export async function processBatch(transactions, push) {
           id: txn.id,
           branch: 'auto_cleared',
           merchant: txn.merchant,
+          amount: txn.amount,
         });
         push({
           type: 'result',
@@ -56,6 +57,7 @@ export async function processBatch(transactions, push) {
           id: txn.id,
           branch: 'escalated_track',
           merchant: txn.merchant,
+          amount: txn.amount,
           confidence: classification.confidence,
         });
 
@@ -89,6 +91,7 @@ export async function processBatch(transactions, push) {
           id: txn.id,
           branch: 'review_track',
           merchant: txn.merchant,
+          amount: txn.amount,
           confidence: classification.confidence,
         });
         const { question } = await generateContextQuestion(txn, classification);
@@ -141,6 +144,7 @@ export async function processBatch(transactions, push) {
           latency_ms: classification.latency_ms,
           tokens_used: classification.tokens_used,
           question,
+          screening_track: 'review_track',
         });
       }
     } catch (err) {
@@ -197,6 +201,7 @@ export async function processContextReply(txnId, userReply, push) {
       enrichment,
       parsedContext,
       userReply,
+      screening_track: track === 'review' ? 'review_track' : 'escalated_track',
     });
 
     pendingTransactions.delete(txnId);

@@ -192,7 +192,7 @@ export default function Stream({ events, liveActive }) {
                 flexShrink: 0,
                 letterSpacing: '0.02em',
               }}>
-                {event.type === 'stage' ? (event.risk_score != null ? `${event.risk_score}/100` : cfg.label) : cfg.label}
+                {event.type === 'stage' ? (event.risk_score != null ? String(event.risk_score) : cfg.label) : cfg.label}
               </span>
               {event.latency_ms && (
                 <span style={{

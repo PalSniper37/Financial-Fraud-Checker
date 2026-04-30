@@ -1,11 +1,21 @@
 import React from 'react';
+import RiskScorePill from './RiskScorePill.jsx';
 
 function fmt(amount) {
   const n = parseFloat(amount || 0);
   return `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export default function SampleShowcase({ backendUrl, payments, meta, loading, error, onRunScreening, screening }) {
+export default function SampleShowcase({
+  backendUrl,
+  payments,
+  meta,
+  loading,
+  error,
+  onRunScreening,
+  screening,
+  ledger = {},
+}) {
   return (
     <div className="rev-card" style={{ margin: '0 max(20px, 4vw)' }}>
       <div style={{
@@ -27,7 +37,7 @@ export default function SampleShowcase({ backendUrl, payments, meta, loading, er
           }}>
             {meta?.title || 'Sample payments'}
           </div>
-          <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)', fontWeight: 500, maxWidth: 520 }}>
+          <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)', fontWeight: 500, maxWidth: 560 }}>
             {meta?.description || 'Load the bundled demo file to populate the live stream and review queue.'}
             {payments.length > 0 && (
               <span style={{ color: 'var(--color-text-secondary)' }}>
@@ -35,6 +45,9 @@ export default function SampleShowcase({ backendUrl, payments, meta, loading, er
                 ({payments.length} rows)
               </span>
             )}
+            <span style={{ display: 'block', marginTop: 6, fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+              Risk score (absolute 1–100, higher is riskier; green → red): preview from merchant/amount until screening updates from the pipeline.
+            </span>
           </div>
         </div>
         <button
@@ -88,6 +101,9 @@ export default function SampleShowcase({ backendUrl, payments, meta, loading, er
                 <th style={{ padding: '12px 20px', borderBottom: '1px solid var(--color-border-primary)' }}>Date</th>
                 <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border-primary)', minWidth: 200 }}>Merchant</th>
                 <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border-primary)', textAlign: 'right' }}>Amount</th>
+                <th style={{ padding: '12px 14px', borderBottom: '1px solid var(--color-border-primary)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  Risk
+                </th>
                 <th style={{ padding: '12px 20px', borderBottom: '1px solid var(--color-border-primary)' }}>User</th>
               </tr>
             </thead>
@@ -115,6 +131,14 @@ export default function SampleShowcase({ backendUrl, payments, meta, loading, er
                     whiteSpace: 'nowrap',
                   }}>
                     {fmt(row.amount)}
+                  </td>
+                  <td style={{
+                    padding: '11px 14px',
+                    borderBottom: '1px solid var(--color-border-primary)',
+                    textAlign: 'right',
+                    verticalAlign: 'middle',
+                  }}>
+                    <RiskScorePill payment={row} ledgerEntry={(ledger || {})[row.id]} />
                   </td>
                   <td style={{ padding: '11px 20px', borderBottom: '1px solid var(--color-border-primary)', color: 'var(--color-text-tertiary)', fontSize: 13 }}>
                     {row.user_id}

@@ -186,6 +186,8 @@ export async function runHighRiskEscalatedAgent(txn, classification, push) {
     phase: 'counterparty_kind',
     txnId: txn.id,
     id: txn.id,
+    merchant: txn.merchant,
+    amount: txn.amount,
     counterparty_kind: counterpartyKind,
   });
 
@@ -203,6 +205,8 @@ export async function runHighRiskEscalatedAgent(txn, classification, push) {
         phase: 'specter_person_email',
         txnId: txn.id,
         id: txn.id,
+        merchant: txn.merchant,
+        amount: txn.amount,
       });
       personBundle.byEmail = await specterGetPersonByEmail(email);
       const pid = personBundle.byEmail?.data?.person_id;
@@ -213,6 +217,8 @@ export async function runHighRiskEscalatedAgent(txn, classification, push) {
           phase: 'specter_person_profile',
           txnId: txn.id,
           id: txn.id,
+          merchant: txn.merchant,
+          amount: txn.amount,
           person_id: pid,
         });
         personBundle.profile = await specterGetPersonById(pid);
@@ -224,6 +230,8 @@ export async function runHighRiskEscalatedAgent(txn, classification, push) {
         phase: 'specter_person_id',
         txnId: txn.id,
         id: txn.id,
+        merchant: txn.merchant,
+        amount: txn.amount,
         person_id: personId,
       });
       personBundle.byId = { ok: true };
@@ -238,6 +246,8 @@ export async function runHighRiskEscalatedAgent(txn, classification, push) {
         phase: 'specter_company_saved_search',
         txnId: txn.id,
         id: txn.id,
+        merchant: txn.merchant,
+        amount: txn.amount,
         search_id: searchId,
       });
       companyBundle.savedSearch = await specterGetCompanySavedSearchResults(searchId, {
@@ -252,6 +262,8 @@ export async function runHighRiskEscalatedAgent(txn, classification, push) {
       phase: 'specter_company_name_search',
       txnId: txn.id,
       id: txn.id,
+      merchant: txn.merchant,
+      amount: txn.amount,
     });
     companyBundle.nameSearch = await specterSearchCompaniesByName(merchantHint);
 
@@ -261,6 +273,8 @@ export async function runHighRiskEscalatedAgent(txn, classification, push) {
       phase: 'specter_entity_text',
       txnId: txn.id,
       id: txn.id,
+      merchant: txn.merchant,
+      amount: txn.amount,
     });
     companyBundle.textEnrichment = await enrichMerchant(merchantHint);
   }
@@ -280,6 +294,8 @@ export async function runHighRiskEscalatedAgent(txn, classification, push) {
     phase: 'rescored',
     txnId: txn.id,
     id: txn.id,
+    merchant: txn.merchant,
+    amount: txn.amount,
     risk_score,
     factors,
     routed_action: route.recommended_action,

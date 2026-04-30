@@ -26,16 +26,22 @@ let liveActive = false;
 let scheduleTimer = null;
 let currentIntervalMs = 4500;
 
+/** Uniform random GBP amount in [0.01, 100_000], two decimal places */
+function randomAmountUpTo100k() {
+  const max = 100_000;
+  const pounds = 0.01 + Math.random() * (max - 0.01);
+  return pounds.toFixed(2);
+}
+
 function randomTxn() {
   const base = POOL[Math.floor(Math.random() * POOL.length)];
-  const jitter = 0.88 + Math.random() * 0.24;
   const id = `live_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const date = new Date().toISOString().slice(0, 10);
   return {
     id,
     date,
     merchant: base.merchant,
-    amount: (base.amount * jitter).toFixed(2),
+    amount: randomAmountUpTo100k(),
     user_id: base.user_id,
   };
 }

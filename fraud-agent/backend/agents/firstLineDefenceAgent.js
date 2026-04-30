@@ -69,6 +69,8 @@ export async function runFirstLineDefenceQuestioning(txn, classification, enrich
     phase: 'enrichment_ingested',
     txnId: txn.id,
     id: txn.id,
+    merchant: txn.merchant,
+    amount: txn.amount,
     specter_found: Boolean(enrichment?.found),
   });
 
@@ -150,6 +152,8 @@ Rules:
     phase: 'questions_ready',
     txnId: txn.id,
     id: txn.id,
+    merchant: txn.merchant,
+    amount: txn.amount,
     question_count: bundle.questions.length,
   });
 

@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Stream from './components/Stream.jsx';
-import Queue from './components/Queue.jsx';
+import AgentQueueHub from './components/AgentQueueHub.jsx';
 import Detail from './components/Detail.jsx';
 import SampleShowcase from './components/SampleShowcase.jsx';
 import AgentConsole from './components/AgentConsole.jsx';
+import AgentProfileDock from './components/AgentProfileDock.jsx';
 
 const BACKEND = 'http://localhost:3001';
 const MAX_EVENTS = 36;
@@ -22,7 +23,7 @@ function parseCSV(text) {
 
 function StatCard({ label, value, accent }) {
   return (
-    <div className="rev-stat ux-card-glow" style={{ flex: 1, minWidth: 108 }}>
+    <div className="rev-stat ux-card-glow ux-stat-glass" style={{ flex: 1, minWidth: 108 }}>
       <div style={{
         fontSize: 11,
         fontWeight: 600,
@@ -72,6 +73,8 @@ export default function App() {
   const [sampleLoadState, setSampleLoadState] = useState({ loading: true, error: null });
   const [sampleScreening, setSampleScreening] = useState(false);
   const [bulkWorking, setBulkWorking] = useState(false);
+  const [runAllWorking, setRunAllWorking] = useState(false);
+  const [ledger, setLedger] = useState({});
   const esRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -104,9 +107,31 @@ export default function App() {
             lastStage: data,
             stageCount: (prev.stageCount || 0) + 1,
           }));
+          const tid = data.txnId || data.id;
+          if (tid) {
+            setLedger(prev => {
+              const cur = prev[tid] || { id: tid };
+              const stageLog = [...(cur.stageLog || []), data].slice(-48);
+              return { ...prev, [tid]: { ...cur, stageLog } };
+            });
+          }
         }
 
         if (data.type === 'result' && data.id) {
+          setLedger(prev => {
+            const prevRow = prev[data.id] || {};
+            const stageLog = prevRow.stageLog || [];
+            return {
+              ...prev,
+              [data.id]: {
+                ...prevRow,
+                ...data,
+                stageLog: data.stageLog?.length ? data.stageLog : stageLog,
+                ledgerAt: Date.now(),
+              },
+            };
+          });
+
           const st = data.status;
           if (st === 'awaiting_context' || st === 'human_review') {
             setQueue(prev => {
@@ -119,12 +144,15 @@ export default function App() {
               return [data, ...prev];
             });
             setSelected(prev => {
-              if (prev && prev.id === data.id) return data;
+              if (prev && prev.id === data.id) return { ...prev, ...data };
               return prev;
             });
           } else {
             setQueue(prev => prev.filter(i => i.id !== data.id));
-            setSelected(prev => (prev && prev.id === data.id ? null : prev));
+            setSelected(prev => {
+              if (prev && prev.id === data.id) return { ...prev, ...data };
+              return prev;
+            });
           }
         }
       } catch (err) {
@@ -214,6 +242,22 @@ export default function App() {
     }
   }
 
+  const postAgentDecision = useCallback(async (t, action) => {
+    await fetch(`${BACKEND}/agent/decision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        txnId: t.id,
+        action,
+        merchant: t.merchant,
+        amount: t.amount,
+        date: t.date,
+        user_id: t.user_id,
+        category: t.category,
+      }),
+    });
+  }, []);
+
   async function acceptLowRiskBatch() {
     setBulkWorking(true);
     try {
@@ -221,19 +265,7 @@ export default function App() {
         i => i.status === 'human_review' && i.verdict?.risk === 'low'
       );
       for (const t of targets) {
-        await fetch(`${BACKEND}/agent/decision`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            txnId: t.id,
-            action: 'approve',
-            merchant: t.merchant,
-            amount: t.amount,
-            date: t.date,
-            user_id: t.user_id,
-            category: t.category,
-          }),
-        });
+        await postAgentDecision(t, 'approve');
         await new Promise(r => setTimeout(r, 100));
       }
     } catch (e) {
@@ -242,6 +274,45 @@ export default function App() {
       setBulkWorking(false);
     }
   }
+
+  async function bulkAutoApproveSafeForRows(rows) {
+    const targets = (rows || []).filter(
+      i => i.status === 'human_review' && i.verdict?.risk === 'low'
+    );
+    if (!targets.length) return;
+    setBulkWorking(true);
+    try {
+      for (const t of targets) {
+        await postAgentDecision(t, 'approve');
+        await new Promise(r => setTimeout(r, 100));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBulkWorking(false);
+    }
+  }
+
+  async function runAllTasks() {
+    setRunAllWorking(true);
+    try {
+      const res = await fetch(`${BACKEND}/demo/sample`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await new Promise(r => setTimeout(r, 2500));
+      await acceptLowRiskBatch();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRunAllWorking(false);
+    }
+  }
+
+  const detailItem = useMemo(() => {
+    if (!selected?.id) return null;
+    const L = ledger[selected.id] || {};
+    const stageLog = L.stageLog?.length ? L.stageLog : selected.stageLog;
+    return { ...L, ...selected, stageLog: stageLog || [] };
+  }, [selected, ledger]);
 
   async function handleFileUpload(e) {
     const file = e.target.files[0];
@@ -273,40 +344,51 @@ export default function App() {
 
   return (
     <div className="rev-shell" style={{ display: 'flex', flexDirection: 'column' }}>
-      <header className="rev-header" style={{
-        padding: '0 max(20px, 4vw)',
-        minHeight: 58,
-        display: 'flex',
+      <header className="rev-header ux-header-future" style={{
+        padding: '10px max(20px, 4vw)',
+        minHeight: 62,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, auto) minmax(0, 1fr) minmax(0, auto)',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        gap: 14,
         flexShrink: 0,
         position: 'sticky',
         top: 0,
         zIndex: 40,
-        gap: 12,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
           <div className="rev-logo" aria-hidden>R</div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div className="ux-display" style={{
               fontWeight: 700,
-              fontSize: 17,
+              fontSize: 18,
               color: 'var(--color-text-primary)',
+              letterSpacing: '-0.04em',
             }}>
               Fraud screening
             </div>
-            <div style={{
-              fontSize: 12,
-              color: 'var(--color-text-tertiary)',
-              marginTop: 2,
-              fontWeight: 500,
-            }}>
+            <div
+              className="ux-tagline-shine"
+              style={{
+                fontSize: 12,
+                marginTop: 3,
+                fontWeight: 600,
+              }}
+            >
               Autonomous agent · live decisions
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexWrap: 'wrap',
+          justifyContent: 'flex-end',
+          justifySelf: 'end',
+          minWidth: 0,
+        }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -412,6 +494,8 @@ export default function App() {
             style={{ display: 'none' }}
           />
         </div>
+
+        <AgentProfileDock connected={connected} />
       </header>
 
       {liveActive && (
@@ -462,6 +546,7 @@ export default function App() {
           error={sampleLoadState.error}
           screening={sampleScreening}
           onRunScreening={runSampleScreening}
+          ledger={ledger}
         />
       </div>
 
@@ -487,7 +572,7 @@ export default function App() {
             <>
               Escalated · {insights.lastStage.phase || '—'}
               {insights.lastStage.risk_score != null && (
-                <> · score {insights.lastStage.risk_score}/100</>
+                <> · score {insights.lastStage.risk_score}</>
               )}
               {insights.lastStage.routed_action && (
                 <> → {String(insights.lastStage.routed_action).replace(/_/g, ' ')}</>
@@ -516,9 +601,18 @@ export default function App() {
         }}
       >
         <Stream events={events} liveActive={liveActive} />
-        <Queue items={queue} onSelect={setSelected} selected={selected} />
+        <AgentQueueHub
+          queue={queue}
+          ledger={ledger}
+          selected={selected}
+          onSelect={setSelected}
+          onBulkAutoApproveSafe={bulkAutoApproveSafeForRows}
+          onRunAllTasks={runAllTasks}
+          bulkWorking={bulkWorking}
+          runAllWorking={runAllWorking}
+        />
         <div style={{ gridColumn: '1 / -1' }}>
-          <Detail item={selected} backendUrl={BACKEND} />
+          <Detail item={detailItem} backendUrl={BACKEND} onAgentAction={postAgentDecision} />
         </div>
       </div>
     </div>
